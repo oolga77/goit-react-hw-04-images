@@ -1,4 +1,3 @@
-import { Component } from 'react';
 import * as FetchImages from './API/FetchImages';
 import { Container } from './APP.styled';
 import { BTNLoadMore } from './Button/Button';
@@ -6,103 +5,86 @@ import { ImageGallery } from './ImageGallery/ImageGallery';
 import Modal from './Modal/Modal';
 import { Searchbar } from './Searchbar/Searchbar';
 import { Loader } from './Loader/Loader';
+import { useState } from 'react';
+import { useEffect } from 'react';
 
-export class App extends Component {
-  state = {
-    query: '',
-    page: 1,
-    images: [],
-    totalHits: 0,
-    error: null,
-    showModal: false,
-    largeImage: '',
-    loading: false,
-  };
+export function App() {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [totalHits, setTotalHits] = useState(0);
+  const [error, setError] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImage, setLargeImage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  componentDidUpdate(prevProps, prevState) {
-    const { query, page } = this.state;
-    if (prevState.query !== query || prevState.page !== page) {
-      this.fetchImages(query, page);
-      this.setState({ loading: true });
+  useEffect(() => {
+    if (!query) {
+      return;
     }
-  }
 
-  fetchImages = async (query, page) => {
-    try {
-      const { hits, totalHits } = await FetchImages.getImages(query, page);
+    const fetchImages = async () => {
+      setLoading({ loading: true });
+      try {
+        const { hits, totalHits } = await FetchImages.getImages(query, page);
+        setImages(images => [...images, ...hits]);
+        setTotalHits(totalHits);
+      } catch (error) {
+        setError(error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      this.setState(prevState => ({
-        images: [...prevState.images, ...hits],
-        ...hits,
-        totalHits: totalHits,
-      }));
-    } catch (error) {
-      this.setState({ error: error.message });
-    } finally {
-      this.setState({ loading: false });
-    }
+    fetchImages();
+  }, [query, page]);
+
+  const toggleModal = () => {
+    setShowModal(!showModal);
   };
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
+  const getLargeImage = largeImage => {
+    setLargeImage(largeImage);
+    setShowModal(true);
   };
 
-  getLargeImage = largeImage => {
-    this.setState({ largeImage, showModal: true });
+  const toggleSpinner = spinnerStatus => {
+    setLoading(spinnerStatus);
   };
 
-  toggleSpinner = spinnerStatus => {
-    this.setState({
-      loading: spinnerStatus,
-    });
+  const onSubmit = value => {
+    setQuery(value);
+    setPage(1);
+    setImages([]);
+    setTotalHits(0);
+    setError(null);
   };
 
-  onSubmit = value => {
-    this.setState({
-      query: value,
-      page: 1,
-      images: [],
-      totalHits: 0,
-      error: null,
-    });
+  const heandleIncrementPage = () => {
+    setPage(page + 1);
   };
 
-  heandleIncrementPage = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-  };
+  return (
+    <Container>
+      <Searchbar onSubmit={onSubmit} />
+      {showModal && <Modal image={largeImage} onClose={toggleModal} />}
+      <ImageGallery
+        images={images}
+        onGetImages={getLargeImage}
+        toggleSpinner={toggleSpinner}
+      />
 
-  imageClick = imageUrl => {
-    this.setState({ largeImage: imageUrl, showModal: true });
-  };
+      {error && (
+        <p textAlign="center">
+          Sorry. Something went wrong!!! Please try again!
+        </p>
+      )}
 
-  render() {
-    const { page, totalHits, showModal, largeImage } = this.state;
-    return (
-      <Container>
-        <Searchbar onSubmit={this.onSubmit} />
-        {showModal && <Modal image={largeImage} onClose={this.toggleModal} />}
-        <ImageGallery
-          images={this.state.images}
-          onGetImages={this.getLargeImage}
-          toggleSpinner={this.toggleSpinner}
-        />
+      {loading && <Loader />}
 
-        {this.state.error && (
-          <p textAlign="center">
-            Sorry. Something went wrong!!! Please try again!
-          </p>
-        )}
-
-        {this.state.loading && <Loader />}
-
-        {page < Math.ceil(totalHits / 12) && (
-          <BTNLoadMore onClick={this.heandleIncrementPage} />
-        )}
-      </Container>
-    );
-  }
+      {page < Math.ceil(totalHits / 12) && (
+        <BTNLoadMore onClick={heandleIncrementPage} />
+      )}
+    </Container>
+  );
 }
